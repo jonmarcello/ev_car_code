@@ -46,8 +46,8 @@ int splashDelay = 500;
 
 //*****
 // 0 = normal
-// 1 = coast
-// 2 = boost
+// 1 = boost
+// 2 = coast
 //*****
 int mode = 0;
 int prev_mode = 0;
@@ -221,8 +221,8 @@ void loop() {
 	//*****
 	// MODES
 	// 0 = normal
-	// 1 = coast
-	// 2 = boost
+	// 1 = boost
+	// 2 = coast
 	//*****
 	if (currentMillis - previousMillisFlash >= flashInterval && mode == 1) {
 		previousMillisFlash = currentMillis;
@@ -247,8 +247,8 @@ void loop() {
 
 //*****
 // 0 = normal
-// 1 = coast
-// 2 = boost
+// 1 = boost
+// 2 = coast
 //*****
 void changeMode(int modeId) {
   if(modeId < 0 || modeId > 2) return;
