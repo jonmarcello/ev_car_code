@@ -30,18 +30,20 @@ int pushButton3 = 13; // boost
 int pushButton4 = 4;  // coast
 int pushButton5 = 3;
 const int intteruptPin = 2;
-const int control_address = 8;
+const int control_address = A4;
 
 int currentPower = 0;
 int previousPower = 0;
 int powerInterval = 15;
+int powerFineInterval = 5;
+int powerFineStart = 45;
 int powerRow = 0;
 int powerCol = 15;
 int displayPower = 0;
 
 bool blink = true;
 
-bool down = true;
+bool up = true;
 int downBtn = 0;
 
 int splashDelay = 500;
@@ -53,16 +55,32 @@ int splashDelay = 500;
 //*****
 int mode = 0;
 int prev_mode = 0;
+int boostSafteySpeed = 70;
+
+//******
+// 0 = normal
+// 1 = race
+// 2 = demo
+//******
+int carMode = 0;
+int testModeMaxPower = 15;
+
+bool resumePower = false;
+int powerResumeFineInterval = 5;
 
 int speed = 0;
 
 unsigned long previousMillis = 0;
 unsigned long previousMillisFlash = 0;
+unsigned long previousMillisCount = 0;
+unsigned long previousMillisResume = 0;
 
 
 // delay for changing of display number, or else it is not possible to tell what speed you are going
 const long interval = 300;
 const long flashInterval = 300;
+const long countInterval = 350;
+const long resumeInterval = 100;
 
 //*****************************************************************************************//
 //                                      Initial Setup
@@ -70,16 +88,16 @@ const long flashInterval = 300;
 void setup() {
   
   Serial.begin(9600);
-  lcd.begin(20, 4);					// setup LCD  for 20 columns and 4 rows
-  lcd.createChar(0, x10);			// digit piece
-  lcd.createChar(1, x11);			// digit piece
-  lcd.createChar(2, x12);			// digit piece
-  lcd.createChar(3, x13);			// digit piece
-  lcd.createChar(4, x14);			// digit piece
-  lcd.createChar(5, x15);			// digit piece
-  lcd.createChar(6, x16);			// digit piece
+  lcd.begin(20, 4);          // setup LCD  for 20 columns and 4 rows
+  lcd.createChar(0, x10);     // digit piece
+  lcd.createChar(1, x11);     // digit piece
+  lcd.createChar(2, x12);     // digit piece
+  lcd.createChar(3, x13);     // digit piece
+  lcd.createChar(4, x14);     // digit piece
+  lcd.createChar(5, x15);     // digit piece
+  lcd.createChar(6, x16);     // digit piece
 
-  lcd.createChar(7, topBar);		// bar
+  lcd.createChar(7, topBar);    // bar
 
   pinMode(pushButton1, INPUT);
   pinMode(pushButton2, INPUT);
@@ -95,8 +113,25 @@ void setup() {
   drawNumber(currentPower, powerRow, powerCol);
 
   Wire.begin();
-  attachInterrupt(digitalPinToInterrupt(intteruptPin), inputCheck, RISING);
+  //Wire.onReceive(wireRead);
+  //attachInterrupt(digitalPinToInterrupt(intteruptPin), interruptFunc, RISING);
 
+}
+
+void interruptFunc() {
+  Serial.println("int.");
+}
+
+void wireRead(int bytes) {
+  Serial.println(bytes);
+}
+
+byte wireWrite(int data, bool changePower, bool changeMode) {
+  int dataEncode = (changePower * 1000) + (changeMode * 2000) + data;
+  Serial.println(dataEncode);
+  Wire.beginTransmission(control_address);
+  Wire.write(dataEncode);
+  Wire.endTransmission();
 }
 
 // Animate everything on the screen (useful to see if anything isn't working)
@@ -117,9 +152,9 @@ void splashScreen() {
     drawBattery(test_speed);
 
     if(test_speed < 55) {
-    	printMode(1, true);
+      printMode(1, true);
     } else {
-		printMode(2, true);
+    printMode(2, true);
     }
 
     delay(200);
@@ -171,12 +206,32 @@ int changePower(bool increase = true) {
   
   if(increase) {
     if(currentPower <= 100) {
-      currentPower += powerInterval;
+      if(currentPower >= powerFineStart) {
+        setPower(currentPower + powerFineInterval);
+      } else {
+        setPower(currentPower + powerInterval);
+      }      
     }
   } else {
     if(currentPower - powerInterval >= 0) {
-      currentPower -= powerInterval;
+      if(currentPower > powerFineStart) {
+        setPower(currentPower - powerFineInterval);
+      } else if(currentPower == powerFineStart) {
+        setPower(currentPower - powerInterval);
+      } else if(currentPower - powerFineInterval <= powerFineStart && currentPower > powerFineStart - powerFineInterval) {
+        setPower(currentPower - powerFineInterval);
+      }  else {
+        setPower(currentPower - powerInterval);
+      }
+    } else {
+      currentPower = 0;
     }
+  }
+  
+  if(currentPower > 100) {
+    Wire.write(wireWrite(100, true, false));
+  } else {
+    Wire.write(wireWrite(currentPower, true, false));
   }
   
   return currentPower;
@@ -185,14 +240,20 @@ int changePower(bool increase = true) {
 void setPower(int power) {
   if(power < 0 || power > 100) return;
 
-  currentPower = power;
+  if(carMode == 2 && power < testModeMaxPower) {
+    currentPower = power;
+  } else if(carMode == 2 && power >= testModeMaxPower) {
+    currentPower = testModeMaxPower;
+  } else {
+    currentPower = power;
+  }
+  
 }
 
 //*****************************************************************************************//
 //                                      MAIN LOOP
 //*****************************************************************************************//
 void loop() {
-  Serial.println(Wire.read());
   unsigned long currentMillis = millis();
 
   if(speed < 100) {
@@ -218,9 +279,26 @@ void loop() {
   // 2 = Speed Down
   // 3 = Coast
   // 4 = Boost
+  // -3, -4 = Boost or Coast Up
   //***********
   int button = buttonPressed();
 
+  // Serial.println(button);
+
+  if(downBtn == 1) {
+    if(currentMillis - previousMillisCount > countInterval) {
+      previousMillisCount = currentMillis;
+      displayPower = changePower();
+    }
+  } else if(downBtn == 2) {
+    if(currentMillis - previousMillisCount > countInterval) {
+      previousMillisCount = currentMillis;
+      displayPower = changePower(false);
+    }
+  } else {
+    previousMillisCount = currentMillis;
+  }
+  
   if(button == 1) {
     displayPower = changePower();
   } else if(button == 2) {
@@ -232,7 +310,28 @@ void loop() {
   } else if(button == 4) {
     changeMode(2);
     displayPower = currentPower;
+  } else if(button == -3 || button == -4) {
+    // Boast or Coast Up
+    if(currentPower < boostSafteySpeed && button == -3) {
+      changeMode(-1);
+    } else {
+      changeMode(0);
+    }
+
+    displayPower = currentPower;
   }
+
+  if(currentMillis - previousMillisResume > resumeInterval && resumePower) {
+      previousMillisResume = currentMillis;
+      
+      if(currentPower + powerResumeFineInterval < previousPower) {
+        setPower(currentPower + powerResumeFineInterval);
+      } else if(currentPower + powerResumeFineInterval >= previousPower) {
+        setPower(previousPower);
+        resumePower = false;
+      }
+      displayPower = currentPower;
+    }
 
   //*****
   // MODES
@@ -273,9 +372,16 @@ void changeMode(int modeId) {
   prev_mode = mode;
 
   if(mode == modeId) {
-  mode = 0;
+    mode = 0;
+  } else if(modeId == 1) {
+    if(currentPower >= boostSafteySpeed) {
+      mode = modeId;
+    } else {
+      printMode(-1, false);
+      return;
+    }
   } else {
-  mode = modeId;
+    mode = modeId;
   }
 
   printMode(mode, false);
@@ -286,9 +392,15 @@ void printMode(int modeId, bool blink) {
   lcd.setCursor(17, 5);
   
   switch(modeId) {
+  case -1:
+    break;
   case 0:
     if(!blink) {
-    setPower(previousPower);
+      if(prev_mode == 2) {
+        resumePower = true;
+      } else {
+        setPower(previousPower);
+      }      
     }
     lcd.print("   ");
     break;
@@ -336,44 +448,49 @@ void drawNumber(int num, byte r, byte c) {
 }
 
 int buttonPressed() {
-  //Serial.println(down);
+  //Serial.println(up);
   
     if(!digitalRead(pushButton1) && downBtn == 1) {
-    down = true;
-    //return 1;
+    up = true;
+    downBtn = 0;
+    //return -1;
     } else if(!digitalRead(pushButton2) && downBtn == 2) {
-    down = true;
-    //return 2;
+    up = true;
+    downBtn = 0;
+    //return -2;
     } else if(!digitalRead(pushButton3) && downBtn == 3) {
-    down = true;
-    //return 3;
+    up = true;
+    downBtn = 0;
+    return -3;
     } else if(!digitalRead(pushButton4) && downBtn == 4) {
-    down = true;
-    //return 4;
+    up = true;
+    downBtn = 0;
+    return -4;
     } else if(!digitalRead(pushButton5) && downBtn == 5) {
-    down = true;
-    //return 5;
+    up = true;
+    downBtn = 0;
+    //return -5;
     }
   
-  if(down) {
+  if(up) {
     if(digitalRead(pushButton1)) {
-    down = false;
+    up = false;
     downBtn = 1;
     return 1;
     } else if(digitalRead(pushButton2)) {
-    down = false;
+    up = false;
     downBtn = 2;
     return 2;
     } else if(digitalRead(pushButton3)) {
-    down = false;
+    up = false;
     downBtn = 3;
     return 3;
     } else if(digitalRead(pushButton4)) {
-    down = false;
+    up = false;
     downBtn = 4;
     return 4;
     } else if(digitalRead(pushButton5)) {
-    down = false;
+    up = false;
     downBtn = 5;
     return 5;
     }
