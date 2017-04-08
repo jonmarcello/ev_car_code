@@ -1,6 +1,10 @@
 #include "U8glib.h"
 
+<<<<<<< Updated upstream
 // Our display is model ST7920, it is using arduino pins 13, 11 and 10
+=======
+// Tells arduino what display we are using and what pins to use
+>>>>>>> Stashed changes
 U8GLIB_ST7920_128X64_1X u8g(13, 11, 10);
 
 // Both the width and height are in pixles
@@ -13,6 +17,7 @@ int current_power = 0;
 // it serves no purpose but to repeat the counting later on in the code
 bool backwards = false;
 
+<<<<<<< Updated upstream
 int calcPercent(int current_value, int max_value = 100) {
   /*
    * Calculate the width of a percent bar using the max width of loadingBarWidth
@@ -24,6 +29,10 @@ int calcPercent(int current_value, int max_value = 100) {
    * max_value > 0
    * max_value > current_value
    */
+=======
+// Used to calculate the percent for a bar of given width (loadingBarWidth)
+int calcPercent(int max_percent, int current_value, int max_value) {
+>>>>>>> Stashed changes
   double percent = ((double)current_value / (double)max_value) * 100;
   return map((int)percent, 0, 100, 0, loadingBarWidth);
 }
@@ -32,6 +41,7 @@ void draw(void) {
   // graphic commands to redraw the complete screen should be placed here  
   u8g.setFont(u8g_font_fub42n);
 
+<<<<<<< Updated upstream
   u8g.drawBox(69,6,calcPercent(current_speed),loadingBarHeight);   // xpos, ypos, width, height
 
   // Convert the ints to strings for drawing  
@@ -53,6 +63,19 @@ void draw(void) {
   // Serial.println(current_speed);
 
   // Draw the box at the end of the loading bar to make it look like a battery
+=======
+  // Draw the loading bar with the given value (test_speed), loadingBarWidth and Height stay constant
+  u8g.drawBox(69,6,calcPercent(loadingBarWidth, test_speed, 100), loadingBarHeight);   // xpos, ypos, width, height
+
+  // Draws the text of the speed
+  String draw_this = String(test_speed);
+  u8g.drawStr(0, 43, draw_this.c_str());
+
+  // debug stuff
+  Serial.println(draw_this);
+
+  // Draw the tip of the battery at the middle right of the loading bar
+>>>>>>> Stashed changes
   u8g.drawBox(124,8,1,5);
   u8g.drawFrame(68,5,loadingBarWidth + 1,loadingBarHeight + 1);
 }

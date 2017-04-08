@@ -30,7 +30,7 @@ int pushButton3 = 13; // boost
 int pushButton4 = 4;  // coast
 int pushButton5 = 3;
 const int intteruptPin = 2;
-const int control_address = A4;
+const int control_address = 8;
 
 int currentPower = 0;
 int previousPower = 0;
@@ -112,7 +112,34 @@ void setup() {
 
   drawNumber(currentPower, powerRow, powerCol);
 
+
+
+  Serial.println ();
+  Serial.println ("I2C scanner. Scanning ...");
+  byte count = 0;
+  
   Wire.begin();
+  for (byte i = 1; i < 120; i++)
+  {
+    Serial.println(i);
+    Wire.beginTransmission (i);
+    if (Wire.endTransmission () == 0)
+      {
+      Serial.print ("Found address: ");
+      Serial.print (i, DEC);
+      Serial.print (" (0x");
+      Serial.print (i, HEX);
+      Serial.println (")");
+      count++;
+      delay (1);  // maybe unneeded?
+      } // end of good response
+  } // end of for loop
+  Serial.println ("Done.");
+  Serial.print ("Found ");
+  Serial.print (count, DEC);
+  Serial.println (" device(s).");
+  
+  //Wire.begin();
   //Wire.onReceive(wireRead);
   //attachInterrupt(digitalPinToInterrupt(intteruptPin), interruptFunc, RISING);
 
@@ -130,7 +157,7 @@ byte wireWrite(int data, bool changePower, bool changeMode) {
   int dataEncode = (changePower * 1000) + (changeMode * 2000) + data;
   Serial.println(dataEncode);
   Wire.beginTransmission(control_address);
-  Wire.write(dataEncode);
+  Wire.write(data);
   Wire.endTransmission();
 }
 
@@ -228,12 +255,6 @@ int changePower(bool increase = true) {
     }
   }
   
-  if(currentPower > 100) {
-    Wire.write(wireWrite(100, true, false));
-  } else {
-    Wire.write(wireWrite(currentPower, true, false));
-  }
-  
   return currentPower;
 }
 
@@ -247,6 +268,12 @@ void setPower(int power) {
   } else {
     currentPower = power;
   }
+
+  if(currentPower > 100) {
+    Wire.write(wireWrite(100, true, false));
+  } else {
+    Wire.write(wireWrite(currentPower, true, false));
+  }
   
 }
 
@@ -256,11 +283,7 @@ void setPower(int power) {
 void loop() {
   unsigned long currentMillis = millis();
 
-  if(speed < 100) {
-    speed ++;
-  } else {
-    speed = 0;
-  }
+  
 
   drawBar(speed, 3, 10, 4, 3);
 
@@ -268,6 +291,11 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     drawNumber(speed, 0, 0);
+    if(speed < 100) {
+      speed ++;
+    } else {
+      speed = 0;
+    }
   }
 
   lcd.setCursor(5, 2);
@@ -359,7 +387,7 @@ void loop() {
   drawBattery(speed);
 
   // Remove this line before production
-  delay(100);
+  //delay(100);
 }
 
 //*****
