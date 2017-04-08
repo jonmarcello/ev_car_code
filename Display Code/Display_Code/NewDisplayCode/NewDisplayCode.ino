@@ -47,6 +47,7 @@ bool up = true;
 int downBtn = 0;
 
 int splashDelay = 500;
+int splashNumDelay = 200;
 
 //*****
 // 0 = normal
@@ -163,9 +164,20 @@ byte wireWrite(int data, bool changePower, bool changeMode) {
 
 // Animate everything on the screen (useful to see if anything isn't working)
 void splashScreen() {
+  /**
+  // Function that gets called during startup
+  // used to make sure the display and characters all work properly
+  //
+  // This function has a set delay of splashNumDelay which can be changed
+  // to fit the needs of the user, startup times will be longer with
+  // a longer delay.  A second delay of splashDelay is called to give a
+  // blank screen between the send of this function and the start of the
+  // main loop
+  //
+  // The calculation for length of this function is (10 * splashNumDelay) + splashDelay.
+  */
   int test_speed = 0;
-  while(test_speed + 11 < 100) {
-    test_speed += 11;
+  while(test_speed < 100) {    
 
     drawNumber(test_speed, 0, 0);
 
@@ -181,10 +193,11 @@ void splashScreen() {
     if(test_speed < 55) {
       printMode(1, true);
     } else {
-    printMode(2, true);
+      printMode(2, true);
     }
 
-    delay(200);
+    test_speed += 11;
+    delay(splashNumDelay);
   }
 
   lcd.clear();
@@ -192,6 +205,17 @@ void splashScreen() {
 }
 
 void drawBar(int num, int r, int c, int height, int width) {
+  /*
+  // This function takes a percent and makes a nice bar out of it
+  //
+  // Args:
+  //  num (int):    the percent between 0 and 100
+  //  r (int):      the row (bottom left)
+  //  c (int):      the column (left most)
+  //  height (int): the height of the bar you would like to draw
+  //  width (int):  the width of the bar
+  //
+  */
   byte topBar[8] = {
   0b00000,
   0b00000,
@@ -209,26 +233,41 @@ void drawBar(int num, int r, int c, int height, int width) {
   int heightOfPixelBlockFlipped = map(heightOfPixelBlock, 0, 7, 7, 0);
 
   for(int i = 7; i > heightOfPixelBlockFlipped; i--) {
-  topBar[i] = fullRow;
+    topBar[i] = fullRow;
   }
 
   lcd.createChar(7, topBar);
 
   for(int i = 0; i < width; i++) {
-  for(int j = 0; j < height; j++) {
-    lcd.setCursor(c + i, r - j);
-    if(j < numOfBlocks) {
-    lcd.write(255);
-    } else if(j > numOfBlocks) {
-    lcd.print(" ");
-    } else if(j == numOfBlocks){
-    lcd.write(char(7));
-    }
-  }    
+    for(int j = 0; j < height; j++) {
+      lcd.setCursor(c + i, r - j);
+      if(j < numOfBlocks) {
+      lcd.write(255);
+      } else if(j > numOfBlocks) {
+      lcd.print(" ");
+      } else if(j == numOfBlocks){
+      lcd.write(char(7));
+      }
+    }    
   }
 }
 
 int changePower(bool increase = true) {
+  /*
+  // Changes the power by a defined increment
+  //
+  // This function uses 4 variables, currentPower, powerFineInterval
+  // powerInterval and powerFineStart.  When called it will determine
+  // wether to increase the function by powerInterval (coarse adjustment)
+  // or powerFineInterval (fine adjustment) based on the current power
+  // level.
+  //
+  // Args:
+  //  increase (bool): set direction to change power, increase or decrease
+  //
+  // Returns:
+  //  int: The current power at which we are driving the motor
+  */
   if(mode != 0) return currentPower;
   
   if(increase) {
@@ -259,6 +298,13 @@ int changePower(bool increase = true) {
 }
 
 void setPower(int power) {
+  /*
+  // Sets the current power if all criteria are met
+  //
+  // Args:
+  //  power (int): the power you want to set
+  //
+  */
   if(power < 0 || power > 100) return;
 
   if(carMode == 2 && power < testModeMaxPower) {
@@ -283,7 +329,6 @@ void setPower(int power) {
 void loop() {
   unsigned long currentMillis = millis();
 
-  
 
   drawBar(speed, 3, 10, 4, 3);
 
@@ -396,6 +441,16 @@ void loop() {
 // 2 = coast
 //*****
 void changeMode(int modeId) {
+  /*
+  // Changes the current mode of the car
+  // 
+  // Args:
+  //  modeId (int): the id of the mode you would like the car to switch to
+  //
+  // 0 = normal
+  // 1 = boost
+  // 2 = coast
+  */
   if(modeId < 0 || modeId > 2) return;
   prev_mode = mode;
 
@@ -416,6 +471,14 @@ void changeMode(int modeId) {
 }
 
 void printMode(int modeId, bool blink) {
+  /*
+  // If the car is in a special mode show it on the display
+  //
+  // Args:
+  //  modeId (int): the mode you want to print
+  //  blink (bool): if we are in a state of blink, don't show any numbers (used for BST)
+  //
+  */
   if(modeId < 0 || modeId > 2) return;
   lcd.setCursor(17, 5);
   
@@ -454,6 +517,14 @@ void printMode(int modeId, bool blink) {
 }
 
 void drawBattery(int percent) {
+  /*
+  // Draws the battery value to the display
+  //
+  // Args:
+  //  percent (int): the current battery percent
+  //
+  // * NOTE * Function soon to be redundant
+  */
   lcd.setCursor(0, 5);
   lcd.print("        ");
   lcd.setCursor(0, 5);
@@ -461,6 +532,15 @@ void drawBattery(int percent) {
 }
 
 void drawNumber(int num, byte r, byte c) {
+  /*
+  // Draws the large numbers
+  //
+  // Args:
+  //  num (int): the number you want to draw between 0 and 99
+  //  r (byte): the row
+  //  c (byte): the column
+  //
+  */
   if(num >= 100) num = 99;
   String numStr = String(num);
   
@@ -476,6 +556,14 @@ void drawNumber(int num, byte r, byte c) {
 }
 
 int buttonPressed() {
+  /*
+  // Returns what button is currently pressed or unpressed
+  //
+  // Returns:
+  //  int:  The nunber of the pressed or relased button.
+  //        (Only returns released for BST and CST buttons)
+  */
+
   //Serial.println(up);
   
     if(!digitalRead(pushButton1) && downBtn == 1) {
