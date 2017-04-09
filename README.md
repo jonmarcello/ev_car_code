@@ -8,5 +8,5 @@ This code runs in a car designed, developed and manufactured by Georigan College
 - Connor Minielly
 
 ## Upcoming Features
-1. Add input for initial battery AMP Hours on startup
-2. Calculate speed
+- [ ] Add input for initial battery AMP Hours on startup
+- [ ] Calculate speed
