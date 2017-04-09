@@ -19,13 +19,27 @@ const int DAC_address = 0x2C;
 bool coasting = false;
 bool write = false;
 
+int redLED = 5;
+int dataLED = 6;
+
+int demoModeSwitch = 7;
+int raceModeSwitch = 8;
+int brakeSwitch = 4;
+
+bool brakeActive = false;
+
 int x = -1;
 //#C => triggers when the arduino recives I2C communications from master.
 
 //#C => basic set up of I2C communication line, runs first in practise.
 void setup()
 {
-  pinMode(5, OUTPUT);
+  pinMode(dataLED, OUTPUT);
+  pinMode(redLED, OUTPUT);
+
+  pinMode(demoModeSwitch, INPUT);
+  pinMode(raceModeSwitch, INPUT);
+  pinMode(brakeSwitch, INPUT);
 
   Wire.begin(8);
   Wire.onReceive(speedChange);
@@ -41,21 +55,42 @@ void speedChange(int bytes)
 
 void loop()
 {
+  brakeActive = !digitalRead(brakeSwitch);
+
+  if(brakeActive) {
+    Wire.beginTransmission(DAC_address);
+    Wire.write(0x00);
+    Wire.write(0);
+    Wire.endTransmission();
+    digitalWrite(redLED, HIGH);
+  } else {
+    digitalWrite(redLED, LOW);
+  }
+  
+  if(digitalRead(demoModeSwitch)) {
+    digitalWrite(redLED, HIGH);
+  } else if(!brakeActive) {
+    digitalWrite(redLED, LOW);
+  }
   
   if (x != -1) {
     x = map(x,0,100,0,255);
-    Wire.beginTransmission(DAC_address);
-    Wire.write(0x00);
-    Wire.write(x);
-    Wire.endTransmission();
+    
+    if(!brakeActive) {
+      Wire.beginTransmission(DAC_address);
+      Wire.write(0x00);
+      Wire.write(x);
+      Wire.endTransmission();
+    }
 
     Serial.println(x);
 
-//    digitalWrite(5, HIGH);   // turn the LED on (HIGH is the voltage level)
-//    delay(50);                       // wait for a second
-//    digitalWrite(5, LOW);    // turn the LED off by making the voltage LOW
-//    delay(50);
+    digitalWrite(dataLED, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(50);                       // wait for a second
+    digitalWrite(dataLED, LOW);    // turn the LED off by making the voltage LOW
+    delay(50);
     x = -1;
   }
   
 }
+
