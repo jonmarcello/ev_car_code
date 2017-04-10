@@ -28,10 +28,22 @@ int brakeSwitch = 4;
 
 int currentPin = A0;
 int voltagePin = A1;
+int speedPin = 3;
 
-int currentCalibration = 0;
+float currentCalibration = 0;
+
+float wheelRadius = 0.254; // meters
+const float pi = 3.14159265359;
+double speed = 0.0;
 
 bool brakeActive = false;
+
+bool speedPinStep = false;
+unsigned long previousMillis = 0;
+
+long unsigned int AMP_TENTH_SECONDS = 0.0;
+float AMP_HOURS = 0.0;
+float current = 0.0;
 
 int x = -1;
 //#C => triggers when the arduino recives I2C communications from master.
@@ -39,6 +51,7 @@ int x = -1;
 //#C => basic set up of I2C communication line, runs first in practise.
 void setup()
 {
+
   pinMode(dataLED, OUTPUT);
   pinMode(redLED, OUTPUT);
 
@@ -46,18 +59,40 @@ void setup()
   pinMode(raceModeSwitch, INPUT);
   pinMode(brakeSwitch, INPUT);
 
-  pinMode(currentPin, INPUT)
+  pinMode(currentPin, INPUT);
+  pinMode(speedPin, INPUT);
 
   Wire.begin(8);
   Wire.onReceive(speedChange);
   Wire.onRequest(sendStatus);
 
   Serial.begin(9600);
+
+  Wire.beginTransmission(DAC_address);
+  Wire.write(0x00);
+  Wire.write(0);
+  Wire.endTransmission();
+
+  attachInterrupt(1, calculateSpeed, FALLING);
+
+  cli();
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1 = 0;
+  OCR1A = 1561;
+  TCCR1B |= (1 << WGM12);
+  TCCR1B |= (1 << CS12) | (1 << CS10);
+  TIMSK1 |= (1 << OCIE1A);
+  sei();
+
+  currentCalibration = analogRead(currentPin);
+  //currentCalibration = 121.0;
 }
 
 void sendStatus() {
-  int encodedMessage = (getCarMode() * 10000) + ;
-  Wire.write(encodedMessage);
+  String encodedMessage = String(getCarMode()) + " " + String(AMP_HOURS) + " " + String(current) + " " + String((int)round(speed));
+  Serial.println(encodedMessage);
+  Wire.write(encodedMessage.c_str());
 }
 
 void speedChange(int bytes)
@@ -84,14 +119,61 @@ int getCarMode() {
     return 1;
   }
 
+  return 0;
+
 }
 
-double calculateCurrent() {
-  return ((analogRead(currentPin) - currentCalibration) * 5 * 50) / 1024;
+ISR(TIMER1_COMPA_vect) {
+  current = calculateAmps();
+  if(current < 0.0) current = 0.0;
+
+  AMP_TENTH_SECONDS += current;
+  AMP_HOURS = AMP_TENTH_SECONDS / 36000.0;
+
+//  Serial.print("RAW Current ");
+//  Serial.print(analogRead(currentPin));
+//  Serial.print(" Offset: ");
+//  Serial.print(currentCalibration);
+//  Serial.print(" Current: ");
+//  Serial.print(current);
+//  Serial.print(" AH/10: ");
+//  Serial.print(AMP_TENTH_SECONDS);
+//  Serial.print(" AH: ");
+//  Serial.println(AMP_HOURS);
 }
 
-double calculateVoltage() {
-  return (analogRead(voltagePin) * 30) / 1024;
+float calculateAmps() {
+  return mapfloat(analogRead(currentPin), currentCalibration, 1024, 0, 200);
+}
+
+float mapfloat(long x, long in_min, long in_max, long out_min, long out_max)
+{
+ return (float)(x - in_min) * (out_max - out_min) / (float)(in_max - in_min) + out_min;
+}
+
+float calculateVoltage() {
+  return (analogRead(voltagePin) * 30.0) / 1024.0;
+}
+
+void calculateSpeed() {
+    unsigned long currentMillis = millis();
+
+    float rotationDistance = (2.0 * pi * wheelRadius) / 4.0;
+
+    float velocity = ((rotationDistance / ((currentMillis - previousMillis) / 1000.0)) * 18.0) / 5.0;
+
+    previousMillis = currentMillis;
+
+  if(currentMillis - previousMillis > 500) {
+    velocity = 0.0;
+    previousMillis = currentMillis;
+  }
+
+  speed = velocity;
+
+  //Serial.print(velocity);
+  //Serial.println(" km/h");
+  //return velocity;
 }
 
 void loop()
@@ -109,6 +191,18 @@ void loop()
   }
   
   getCarMode();
+
+  if(millis() - previousMillis > 1000) {
+    speed = 0;
+  }
+
+//  Serial.print("Current: ");
+//  Serial.print(calculateCurrent());
+//  Serial.print(" Voltage: ");
+//  Serial.println(calculateVoltage());
+//  Serial.print(" Speed: ");
+  //Serial.print(calculateSpeed());
+  //Serial.println(" km/h");
   
   if (x != -1) {
     x = map(x,0,100,0,255);
@@ -122,10 +216,10 @@ void loop()
 
     Serial.println(x);
 
-    digitalWrite(dataLED, HIGH);   // turn the LED on (HIGH is the voltage level)
-    delay(50);                       // wait for a second
-    digitalWrite(dataLED, LOW);    // turn the LED off by making the voltage LOW
-    delay(50);
+    //digitalWrite(dataLED, HIGH);   // turn the LED on (HIGH is the voltage level)
+    //delay(50);                       // wait for a second
+    //digitalWrite(dataLED, LOW);    // turn the LED off by making the voltage LOW
+    //delay(50);
     x = -1;
   }
   

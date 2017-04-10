@@ -70,6 +70,8 @@ bool resumePower = false;
 int powerResumeFineInterval = 5;
 
 int speed = 0;
+int batteryPercent = 0;
+float carCurrent = 0.0;
 
 unsigned long previousMillis = 0;
 unsigned long previousMillisFlash = 0;
@@ -151,22 +153,38 @@ void interruptFunc() {
 }
 
 void wireRead() {
-  Wire.requestFrom(control_address, 5);
+  Wire.requestFrom(control_address, 14);
+  String decodeMessageStr = "";
+  String decodedMessage[4] = {"","","",""};
+  String fullMessage = "";
+  int i = 0;
 
-  while (Wire.available()) {          // slave may send less than requested
-    int decodeMessage = Wire.read();  // receive a byte as character
+  while (Wire.available()) { // slave may send less than requested
+    char character = (char)Wire.read();
+    fullMessage += character;
+    if(!isWhitespace(character)) {
+      decodeMessageStr += character; // receive a byte as character
+    } else {
+      decodedMessage[i] = String(decodeMessageStr);
+      i++;
+      decodeMessageStr = "";
+    }
+    //Serial.print((char)Wire.read());
   }
+    decodedMessage[i] = String(decodeMessageStr);
 
-  mode = decodeMessage / 10000;
-  batteryPercent = (decodeMessage - (mode * 10000)) / 100;
-  speed = decodeMessage - (mode * 10000) - (batteryPercent * 100);
+    carMode = decodedMessage[0].toInt();
+    batteryPercent = decodedMessage[1].toFloat();
+    carCurrent = decodedMessage[2].toFloat();
+    speed = decodedMessage[3].toInt();
 
-  Serial.println(decodeMessage);
+    //Serial.print(decodedMessage[3] + " ");
+    Serial.println(fullMessage);
 }
 
 byte wireWrite(int data, bool changePower, bool changeMode) {
   int dataEncode = (changePower * 1000) + (changeMode * 2000) + data;
-  Serial.println(dataEncode);
+  //Serial.println(dataEncode);
   Wire.beginTransmission(control_address);
   Wire.write(data);
   Wire.endTransmission();
@@ -341,17 +359,18 @@ void loop() {
 
   wireRead();
 
-  drawBar(speed, 3, 10, 4, 3);
+  drawBar(batteryPercent, 3, 10, 4, 3);
 
   // draw current power
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     drawNumber(speed, 0, 0);
-    if(speed < 100) {
-      speed ++;
-    } else {
-      speed = 0;
-    }
+    
+    // if(speed < 100) {
+    //   speed ++;
+    // } else {
+    //   speed = 0;
+    // }
   }
 
   lcd.setCursor(5, 2);
@@ -440,7 +459,7 @@ void loop() {
     drawNumber(displayPower, powerRow, powerCol);
   }
 
-  drawBattery(speed);
+  drawBattery((int)carCurrent);
 
   // Remove this line before production
   //delay(100);
@@ -537,9 +556,9 @@ void drawBattery(int percent) {
   // * NOTE * Function soon to be redundant
   */
   lcd.setCursor(0, 5);
-  lcd.print("        ");
+  lcd.print("         ");
   lcd.setCursor(0, 5);
-  lcd.print("Bat:" + String(percent) + "%");
+  lcd.print(String(percent) + " A");
 }
 
 void drawNumber(int num, byte r, byte c) {
