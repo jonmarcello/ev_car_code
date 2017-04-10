@@ -150,8 +150,18 @@ void interruptFunc() {
   Serial.println("int.");
 }
 
-void wireRead(int bytes) {
-  Serial.println(bytes);
+void wireRead() {
+  Wire.requestFrom(control_address, 5);
+
+  while (Wire.available()) {          // slave may send less than requested
+    int decodeMessage = Wire.read();  // receive a byte as character
+  }
+
+  mode = decodeMessage / 10000;
+  batteryPercent = (decodeMessage - (mode * 10000)) / 100;
+  speed = decodeMessage - (mode * 10000) - (batteryPercent * 100);
+
+  Serial.println(decodeMessage);
 }
 
 byte wireWrite(int data, bool changePower, bool changeMode) {
@@ -171,7 +181,7 @@ void splashScreen() {
   // This function has a set delay of splashNumDelay which can be changed
   // to fit the needs of the user, startup times will be longer with
   // a longer delay.  A second delay of splashDelay is called to give a
-  // blank screen between the send of this function and the start of the
+  // blank screen between the end of this function and the start of the
   // main loop
   //
   // The calculation for length of this function is (10 * splashNumDelay) + splashDelay.
@@ -329,6 +339,7 @@ void setPower(int power) {
 void loop() {
   unsigned long currentMillis = millis();
 
+  wireRead();
 
   drawBar(speed, 3, 10, 4, 3);
 

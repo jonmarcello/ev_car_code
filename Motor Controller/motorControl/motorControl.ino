@@ -26,6 +26,11 @@ int demoModeSwitch = 7;
 int raceModeSwitch = 8;
 int brakeSwitch = 4;
 
+int currentPin = A0;
+int voltagePin = A1;
+
+int currentCalibration = 0;
+
 bool brakeActive = false;
 
 int x = -1;
@@ -41,10 +46,18 @@ void setup()
   pinMode(raceModeSwitch, INPUT);
   pinMode(brakeSwitch, INPUT);
 
+  pinMode(currentPin, INPUT)
+
   Wire.begin(8);
   Wire.onReceive(speedChange);
+  Wire.onRequest(sendStatus);
 
   Serial.begin(9600);
+}
+
+void sendStatus() {
+  int encodedMessage = (getCarMode() * 10000) + ;
+  Wire.write(encodedMessage);
 }
 
 void speedChange(int bytes)
@@ -52,6 +65,34 @@ void speedChange(int bytes)
   x = Wire.read();
 }
 
+int getCarMode() {
+  //******
+  // 0 = normal
+  // 1 = race
+  // 2 = demo
+  //******
+  if(digitalRead(demoModeSwitch)) {
+    if(!brakeActive) {
+      digitalWrite(redLED, HIGH);
+    }
+    return 2;
+  } else if(!brakeActive) {
+    digitalWrite(redLED, LOW);
+  }
+
+  if(digitalRead(raceModeSwitch)) {
+    return 1;
+  }
+
+}
+
+double calculateCurrent() {
+  return ((analogRead(currentPin) - currentCalibration) * 5 * 50) / 1024;
+}
+
+double calculateVoltage() {
+  return (analogRead(voltagePin) * 30) / 1024;
+}
 
 void loop()
 {
@@ -67,11 +108,7 @@ void loop()
     digitalWrite(redLED, LOW);
   }
   
-  if(digitalRead(demoModeSwitch)) {
-    digitalWrite(redLED, HIGH);
-  } else if(!brakeActive) {
-    digitalWrite(redLED, LOW);
-  }
+  getCarMode();
   
   if (x != -1) {
     x = map(x,0,100,0,255);
