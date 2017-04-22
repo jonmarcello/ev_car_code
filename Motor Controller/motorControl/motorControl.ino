@@ -48,6 +48,21 @@ float AMP_HOURS = 0.0;
 float current = 0.0;
 
 int x = -1;
+
+// Log Variables
+double maxSpeed = 0.0;
+float maxCurrent = 0.0;
+
+
+
+void writeToDAC(int data) {
+  if(data < 0 || data > 255 || data == currentPower) return;
+  Wire.beginTransmission(DAC_address);
+  Wire.write(0x00);
+  Wire.write(data);
+  Wire.endTransmission();
+}
+
 //#C => triggers when the arduino recives I2C communications from master.
 
 //#C => basic set up of I2C communication line, runs first in practise.
@@ -70,10 +85,7 @@ void setup()
 
   Serial.begin(9600);
 
-  Wire.beginTransmission(DAC_address);
-  Wire.write(0x00);
-  Wire.write(0);
-  Wire.endTransmission();
+  writeToDAC(0);
 
   attachInterrupt(1, calculateSpeed, FALLING);
 
@@ -130,20 +142,10 @@ int getCarMode() {
 ISR(TIMER1_COMPA_vect) {
   current = calculateAmps();
   if(current < 0.0) current = 0.0;
+  if(current > maxCurrent) maxCurrent = current;
 
   AMP_TENTH_SECONDS += current;
   AMP_HOURS = AMP_TENTH_SECONDS / 36000.0;
-
-//  Serial.print("RAW Current ");
-//  Serial.print(analogRead(currentPin));
-//  Serial.print(" Offset: ");
-//  Serial.print(currentCalibration);
-//  Serial.print(" Current: ");
-//  Serial.print(current);
-//  Serial.print(" AH/10: ");
-//  Serial.print(AMP_TENTH_SECONDS);
-//  Serial.print(" AH: ");
-//  Serial.println(AMP_HOURS);
 }
 
 float calculateAmps() {
@@ -175,9 +177,7 @@ void calculateSpeed() {
 
   speed = velocity;
 
-  //Serial.print(velocity);
-  //Serial.println(" km/h");
-  //return velocity;
+  if(speed > maxSpeed) maxSpeed = speed;
 }
 
 void loop()
@@ -186,10 +186,8 @@ void loop()
 
   if(brakeActive) {
     //previousPower = currentPower;
-    Wire.beginTransmission(DAC_address);
-    Wire.write(0x00);
-    Wire.write(0);
-    Wire.endTransmission();
+    writeToDAC(0);
+
     digitalWrite(redLED, HIGH);
     Serial.println("BRK");
     currentPower = 0;
@@ -197,41 +195,22 @@ void loop()
     //currentPower = previousPower;
     digitalWrite(redLED, LOW);
   }
-  
+
   getCarMode();
 
-  if(millis() - previousMillis > 1000) {
+  if(millis() - previousMillis > 750) {
     speed = 0;
   }
 
-//  Serial.print("Current: ");
-//  Serial.print(calculateCurrent());
-//  Serial.print(" Voltage: ");
-//  Serial.println(calculateVoltage());
-//  Serial.print(" Speed: ");
-  //Serial.print(calculateSpeed());
-  //Serial.println(" km/h");
-  
   if (x != -1) {
     x = map(x,0,100,0,255);
-    
+
     if(!brakeActive) {
-      Wire.beginTransmission(DAC_address);
-      Wire.write(0x00);
-      Wire.write(x);
-      Wire.endTransmission();
-      
+      writeToDAC(x);      
     }
 
     Serial.println(x);
 
-    //digitalWrite(dataLED, HIGH);   // turn the LED on (HIGH is the voltage level)
-    //delay(50);                       // wait for a second
-    //digitalWrite(dataLED, LOW);    // turn the LED off by making the voltage LOW
-    //delay(50);
     x = -1;
   }
-  
 }
-
-
