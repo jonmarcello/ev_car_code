@@ -41,6 +41,8 @@ int powerRow = 0;
 int powerCol = 15;
 int displayPower = 0;
 
+int motorPower = 0;
+
 bool blink = true;
 
 bool up = true;
@@ -153,9 +155,9 @@ void interruptFunc() {
 }
 
 void wireRead() {
-  Wire.requestFrom(control_address, 14);
+  Wire.requestFrom(control_address, 22);
   String decodeMessageStr = "";
-  String decodedMessage[4] = {"","","",""};
+  String decodedMessage[5] = {"","","","",""};
   String fullMessage = "";
   int i = 0;
 
@@ -177,6 +179,15 @@ void wireRead() {
     batteryPercent = decodedMessage[1].toFloat();
     carCurrent = decodedMessage[2].toFloat();
     speed = decodedMessage[3].toInt();
+    motorPower = decodedMessage[4].toInt();
+
+    Serial.print("Motor: ");
+    Serial.println(motorPower);
+    Serial.print(" Current Pwer: ");
+    Serial.println(currentPower);
+    if(motorPower != currentPower) {
+      setPower(motorPower);
+    }
 
     //Serial.print(decodedMessage[3] + " ");
     Serial.println(fullMessage);
@@ -184,7 +195,8 @@ void wireRead() {
 
 byte wireWrite(int data, bool changePower, bool changeMode) {
   int dataEncode = (changePower * 1000) + (changeMode * 2000) + data;
-  //Serial.println(dataEncode);
+  Serial.print("POWER: ");
+  Serial.println(data);
   Wire.beginTransmission(control_address);
   Wire.write(data);
   Wire.endTransmission();
@@ -348,6 +360,13 @@ void setPower(int power) {
   } else {
     Wire.write(wireWrite(currentPower, true, false));
   }
+
+  if(currentPower >= 100) {
+    displayPower = 99;
+  } else {
+    displayPower = currentPower;
+  }
+  
   
 }
 
@@ -402,10 +421,19 @@ void loop() {
     previousMillisCount = currentMillis;
   }
   
-  if(button == 1) {
+  if(button == 1 && !resumePower) {
     displayPower = changePower();
   } else if(button == 2) {
-    displayPower = changePower(false);
+    if(resumePower) {
+      if(currentPower < powerFineStart) {
+        currentPower = powerInterval * (int)(currentPower / powerInterval);
+      }
+      displayPower = currentPower;
+      setPower(currentPower);
+      resumePower = false;
+    } else {
+      displayPower = changePower(false);
+    }    
   } else if(button == 3) {
     // Boost
     changeMode(1);
@@ -536,7 +564,7 @@ void printMode(int modeId, bool blink) {
     break;
   case 2:
     if(!blink) {
-    if(prev_mode != 1) {
+    if(prev_mode != 1 && !resumePower) {
       previousPower = currentPower;
     }
     setPower(0);
@@ -697,3 +725,4 @@ void doNumber(byte num, byte r, byte c) {
         lcd.setCursor(c,r+2); lcd.print(" "); lcd.print(" "); break;
   } 
 }
+

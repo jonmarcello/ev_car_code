@@ -29,6 +29,8 @@ int brakeSwitch = 4;
 int currentPin = A0;
 int voltagePin = A1;
 int speedPin = 3;
+int currentPower = 0;
+int previousPower = 0;
 
 float currentCalibration = 0;
 
@@ -90,7 +92,7 @@ void setup()
 }
 
 void sendStatus() {
-  String encodedMessage = String(getCarMode()) + " " + String(AMP_HOURS) + " " + String(current) + " " + String((int)round(speed));
+  String encodedMessage = String(getCarMode()) + " " + String(AMP_HOURS) + " " + String(current) + " " + String((int)round(speed)) + " " + String(currentPower) + " 0";
   Serial.println(encodedMessage);
   Wire.write(encodedMessage.c_str());
 }
@@ -98,6 +100,8 @@ void sendStatus() {
 void speedChange(int bytes)
 {
   x = Wire.read();
+  Serial.println(x);
+  currentPower = x;
 }
 
 int getCarMode() {
@@ -181,12 +185,16 @@ void loop()
   brakeActive = !digitalRead(brakeSwitch);
 
   if(brakeActive) {
+    //previousPower = currentPower;
     Wire.beginTransmission(DAC_address);
     Wire.write(0x00);
     Wire.write(0);
     Wire.endTransmission();
     digitalWrite(redLED, HIGH);
+    Serial.println("BRK");
+    currentPower = 0;
   } else {
+    //currentPower = previousPower;
     digitalWrite(redLED, LOW);
   }
   
@@ -212,6 +220,7 @@ void loop()
       Wire.write(0x00);
       Wire.write(x);
       Wire.endTransmission();
+      
     }
 
     Serial.println(x);
@@ -224,4 +233,5 @@ void loop()
   }
   
 }
+
 
